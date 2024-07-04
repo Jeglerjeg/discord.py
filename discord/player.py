@@ -23,10 +23,10 @@ DEALINGS IN THE SOFTWARE.
 """
 from __future__ import annotations
 
+import array
 import threading
 import subprocess
 import warnings
-import audioop
 import asyncio
 import logging
 import shlex
@@ -35,6 +35,7 @@ import json
 import sys
 import re
 import io
+from math import floor
 
 from typing import Any, Callable, Generic, IO, Optional, TYPE_CHECKING, Tuple, TypeVar, Union
 
@@ -692,8 +693,17 @@ class PCMVolumeTransformer(AudioSource, Generic[AT]):
         self.original.cleanup()
 
     def read(self) -> bytes:
+        maxval = 0x7FFF
+        minval = -0x8000
+
+        volume = min(self._volume, 2.0)
         ret = self.original.read()
-        return audioop.mul(ret, 2, min(self._volume, 2.0))
+        samples = array.array("h")
+        samples.frombytes(ret)
+        for i in range(len(samples)):
+            samples[i] = int(floor(min(maxval, max(samples[i] * volume, minval))))
+
+        return samples.tobytes()
 
 
 class AudioPlayer(threading.Thread):
